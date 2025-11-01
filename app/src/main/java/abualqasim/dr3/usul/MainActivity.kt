@@ -1,7 +1,8 @@
 // file: app/src/main/java/abualqasim/dr3/usul/ui/MainActivity.kt
-package abualqasim.dr3.usul.ui
+package abualqasim.dr3.usul
 
 import abualqasim.dr3.usul.ui.form.FormScreen
+import abualqasim.dr3.usul.ui.MainViewModel
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
