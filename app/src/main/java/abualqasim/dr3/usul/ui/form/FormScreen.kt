@@ -335,8 +335,8 @@ fun FormScreen(
                 onValueChange = { description = it },
                 label = { Text("Description") },
                 modifier = Modifier.fillMaxWidth().focusRequester(descFR),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = { saveFR.requestFocus() })
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { saveFR.requestFocus() })
             )
         }
 
@@ -412,6 +412,7 @@ private fun PhotoPreviewCard(
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
+    val file = filePath?.let(::File)
     ElevatedCard(
         modifier = modifier.clickable(onClick = onClick),
         shape = MaterialTheme.shapes.medium
@@ -425,10 +426,10 @@ private fun PhotoPreviewCard(
         ) {
             Text(label, style = MaterialTheme.typography.labelMedium)
 
-            if (filePath != null) {
+            if (file != null && file.exists()) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
-                        .data(File(filePath))
+                        .data(file)
                         .allowHardware(false)
                         .crossfade(true)
                         .build(),
@@ -452,7 +453,7 @@ private fun PhotoPreviewCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Tap to capture",
+                        text = if (filePath != null) "Image unavailable" else "Tap to capture",
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center
                     )
@@ -470,6 +471,7 @@ private fun PhotoViewerDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val file = remember(path) { File(path) }
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = MaterialTheme.shapes.large,
@@ -482,18 +484,33 @@ private fun PhotoViewerDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(label, style = MaterialTheme.typography.titleMedium)
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(File(path))
-                        .allowHardware(false)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "$label photo",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp),
-                    contentScale = ContentScale.Fit
-                )
+                if (file.exists()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(file)
+                            .allowHardware(false)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "$label photo",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Image unavailable",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
