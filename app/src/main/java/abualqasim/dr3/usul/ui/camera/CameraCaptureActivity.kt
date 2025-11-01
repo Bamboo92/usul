@@ -8,9 +8,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraController
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.view.CameraController       // ✅ correct package
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
@@ -31,8 +31,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.icons.Icons
-import androidx.compose.material3.icons.filled.Close
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +53,7 @@ import androidx.core.view.WindowCompat
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import abualqasim.dr3.usul.ui.theme.UsulTheme
+import androidx.activity.compose.setContent
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -103,16 +104,14 @@ private fun CameraCaptureScreen(
     var permissionGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                android.content.pm.PackageManager.PERMISSION_GRANTED
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
         )
     }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         permissionGranted = granted
-        if (!granted) {
-            onCancel()
-        }
+        if (!granted) onCancel()
     }
 
     LaunchedEffect(Unit) {
@@ -157,7 +156,7 @@ private fun CameraCaptureScreen(
 
     fun sanitizeTitle(raw: String): String {
         val fallback = if (raw.isBlank()) "Photo" else raw
-        return fallback.replace(Regex("[^A-Za-z0-9_\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF ]"), " ")
+        return fallback.replace(Regex("[^A-Za-z0-9_\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF ]"), " ")
             .trim()
             .ifBlank { "Photo" }
     }
@@ -230,9 +229,7 @@ private fun CameraCaptureScreen(
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
-                PreviewView(ctx).apply {
-                    this.controller = controller
-                }
+                PreviewView(ctx).apply { this.controller = controller }
             }
         )
 

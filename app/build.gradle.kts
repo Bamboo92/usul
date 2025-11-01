@@ -44,6 +44,7 @@ android {
         resources.excludes += setOf("META-INF/LICENSE*", "META-INF/NOTICE*")
     }
 }
+val cameraxVersion = "1.3.1"
 
 dependencies {
     // --- Compose ---
@@ -62,10 +63,12 @@ dependencies {
     implementation(libs.coil.compose)
 
     // --- CameraX ---
-    implementation(libs.androidx.camera.core)
-    implementation(libs.androidx.camera.camera2)
-    implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+
+
 
     // --- Core / Lifecycle / Navigation / Coroutines ---
     implementation(libs.androidx.core.ktx)
