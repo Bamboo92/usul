@@ -15,6 +15,9 @@ import abualqasim.dr3.usul.data.db.Surface
 import abualqasim.dr3.usul.data.repo.EntryRepository
 import abualqasim.dr3.usul.session.SessionStore
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class VocabMaps(
     val cat: Map<Long, String> = emptyMap(),
@@ -167,17 +170,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         entryId: String,
         categoryName: String,
         nearPath: String?,
-        farPath: String?
+        farPath: String?,
+        title: String,
     ) = viewModelScope.launch(Dispatchers.IO) {
         val safeName = categoryName.ifBlank { "غير مصنف" }
         val folder = File(context.getExternalFilesDir(null), "photos/$safeName").apply { mkdirs() }
+
+        val safeTitle = title.ifBlank { "Entry" }
+            .replace(Regex("[^A-Za-z0-9_\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF ]"), " " )
+            .trim()
+            .ifBlank { "Entry" }
+        val timestamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
 
         listOfNotNull(
             nearPath?.let { File(it) }?.let { it to "near" },
             farPath?.let { File(it) }?.let { it to "far" }
         ).forEach { (src, tag) ->
             if (src.exists()) {
-                val dest = File(folder, "${entryId}_${tag}.jpg")
+                val tagLabel = when (tag) {
+                    "near" -> "Near"
+                    "far" -> "Far"
+                    else -> tag
+                }
+                val destName = "$safeTitle $timestamp $tagLabel.jpg"
+                val dest = File(folder, destName)
                 try {
                     src.copyTo(dest, overwrite = true)
                     src.delete()
