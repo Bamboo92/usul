@@ -15,7 +15,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +25,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -56,6 +57,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -85,7 +87,6 @@ fun FormScreen(
     var nearPhotoPath by remember { mutableStateOf<String?>(null) }
     var farPhotoPath by remember { mutableStateOf<String?>(null) }
     var captureInProgress by remember { mutableStateOf<PhotoType?>(null) }
-    var reviewPendingFor by remember { mutableStateOf<PhotoType?>(null) }
 
     fun newTargetFile(tag: String) =
         File(context.cacheDir, "${tag}_${System.currentTimeMillis()}.jpg")
@@ -103,18 +104,17 @@ fun FormScreen(
         }
     }
 
+    val farButtonFocus = remember { FocusRequester() }
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         val type = captureInProgress
-        if (success) {
-            if (type != null) {
-                reviewPendingFor = type
-            }
-        } else {
-            if (type != null) {
-                clearPhoto(type)
-            }
+        if (!success && type != null) {
+            clearPhoto(type)
+        }
+        if (success && type == PhotoType.NEAR) {
+            farButtonFocus.requestFocus()
         }
         captureInProgress = null
     }
@@ -158,6 +158,8 @@ fun FormScreen(
     }
 
     BackHandler { vm.endFormSession(); nav.popBackStack() }
+
+    val formScrollState = rememberScrollState()
 
     Scaffold(
         topBar = {
@@ -218,7 +220,8 @@ fun FormScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(formScrollState),
             verticalArrangement = Arrangement.Top
         ) {
             AssistChipRow(sessionCity, sessionDistrict)
@@ -228,7 +231,7 @@ fun FormScreen(
             PhotoCaptureSection(
                 nearPhotoPath = nearPhotoPath,
                 farPhotoPath = farPhotoPath,
-                reviewPendingFor = reviewPendingFor,
+                captureDisabled = captureInProgress != null,
                 onRequestCapture = { type ->
                     startCapture(
                         type = type,
@@ -241,48 +244,19 @@ fun FormScreen(
                         },
                         setCapture = { captureInProgress = it },
                         context = context,
-                        cameraLauncher = cameraLauncher
+                        cameraLauncher = cameraLauncher,
+                        onPrepare = { clearPhoto(type) }
                     )
                 },
-                onCancel = { pendingType ->
-                    clearPhoto(pendingType)
-                    reviewPendingFor = null
-                    takePhotoFR.requestFocus()
+                onClear = { type ->
+                    clearPhoto(type)
+                    when (type) {
+                        PhotoType.NEAR -> takePhotoFR.requestFocus()
+                        PhotoType.FAR -> farButtonFocus.requestFocus()
+                    }
                 },
-                onAccept = {
-                    reviewPendingFor = null
-                    takePhotoFR.requestFocus()
-                },
-                onNext = {
-                    reviewPendingFor = null
-                    clearPhoto(PhotoType.FAR)
-                    startCapture(
-                        type = PhotoType.FAR,
-                        newTargetFile = ::newTargetFile,
-                        setPath = { farPhotoPath = it },
-                        setCapture = { captureInProgress = it },
-                        context = context,
-                        cameraLauncher = cameraLauncher
-                    )
-                },
-                onRedo = { pendingType ->
-                    clearPhoto(pendingType)
-                    reviewPendingFor = null
-                    startCapture(
-                        type = pendingType,
-                        newTargetFile = ::newTargetFile,
-                        setPath = {
-                            when (pendingType) {
-                                PhotoType.NEAR -> nearPhotoPath = it
-                                PhotoType.FAR -> farPhotoPath = it
-                            }
-                        },
-                        setCapture = { captureInProgress = it },
-                        context = context,
-                        cameraLauncher = cameraLauncher
-                    )
-                },
-                takePhotoRequester = takePhotoFR
+                takePhotoRequester = takePhotoFR,
+                farPhotoRequester = farButtonFocus
             )
 
             Spacer(Modifier.height(24.dp))
@@ -399,12 +373,14 @@ private fun startCapture(
     setPath: (String) -> Unit,
     setCapture: (PhotoType) -> Unit,
     context: Context,
-    cameraLauncher: ActivityResultLauncher<Uri>
+    cameraLauncher: ActivityResultLauncher<Uri>,
+    onPrepare: () -> Unit = {}
 ) {
     val tag = when (type) {
         PhotoType.NEAR -> "near"
         PhotoType.FAR -> "far"
     }
+    onPrepare()
     val target = newTargetFile(tag)
     setPath(target.absolutePath)
     val photoUri = FileProvider.getUriForFile(
@@ -420,13 +396,11 @@ private fun startCapture(
 private fun PhotoCaptureSection(
     nearPhotoPath: String?,
     farPhotoPath: String?,
-    reviewPendingFor: PhotoType?,
+    captureDisabled: Boolean,
     onRequestCapture: (PhotoType) -> Unit,
-    onCancel: (PhotoType) -> Unit,
-    onAccept: () -> Unit,
-    onNext: () -> Unit,
-    onRedo: (PhotoType) -> Unit,
+    onClear: (PhotoType) -> Unit,
     takePhotoRequester: FocusRequester,
+    farPhotoRequester: FocusRequester,
 ) {
     Column(Modifier.fillMaxWidth()) {
         Text("Photos (optional)")
@@ -440,15 +414,17 @@ private fun PhotoCaptureSection(
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(takePhotoRequester),
-                enabled = reviewPendingFor == null,
+                enabled = !captureDisabled,
                 onClick = { onRequestCapture(PhotoType.NEAR) }
             ) {
                 Text("Take Near")
             }
 
             Button(
-                modifier = Modifier.weight(1f),
-                enabled = reviewPendingFor == null,
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(farPhotoRequester),
+                enabled = !captureDisabled,
                 onClick = { onRequestCapture(PhotoType.FAR) }
             ) {
                 Text("Take Far")
@@ -464,56 +440,20 @@ private fun PhotoCaptureSection(
             PhotoPreview(
                 modifier = Modifier.weight(1f),
                 label = "Near",
-                filePath = nearPhotoPath
+                filePath = nearPhotoPath,
+                captureDisabled = captureDisabled,
+                onClear = { onClear(PhotoType.NEAR) },
+                onRetake = { onRequestCapture(PhotoType.NEAR) }
             )
 
             PhotoPreview(
                 modifier = Modifier.weight(1f),
                 label = "Far",
-                filePath = farPhotoPath
+                filePath = farPhotoPath,
+                captureDisabled = captureDisabled,
+                onClear = { onClear(PhotoType.FAR) },
+                onRetake = { onRequestCapture(PhotoType.FAR) }
             )
-        }
-
-        AnimatedVisibility(visible = reviewPendingFor != null) {
-            val pendingType = reviewPendingFor ?: return@AnimatedVisibility
-
-            Column {
-                Spacer(Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onCancel(pendingType) }
-                    ) {
-                        Text("Cancel")
-                    }
-
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        onClick = onAccept
-                    ) {
-                        Text("Accept")
-                    }
-
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        enabled = pendingType == PhotoType.NEAR,
-                        onClick = onNext
-                    ) {
-                        Text("Next")
-                    }
-
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = { onRedo(pendingType) }
-                    ) {
-                        Text("Redo")
-                    }
-                }
-            }
         }
     }
 }
@@ -523,11 +463,15 @@ private fun PhotoPreview(
     modifier: Modifier = Modifier,
     label: String,
     filePath: String?,
+    captureDisabled: Boolean,
+    onClear: () -> Unit,
+    onRetake: () -> Unit,
 ) {
     ElevatedCard(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium
     ) {
+        val context = LocalContext.current
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -540,12 +484,36 @@ private fun PhotoPreview(
 
             if (filePath != null) {
                 AsyncImage(
-                    model = File(filePath),
+                    model = ImageRequest.Builder(context)
+                        .data(File(filePath))
+                        .crossfade(true)
+                        .build(),
                     contentDescription = "$label photo",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(140.dp)
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !captureDisabled,
+                        onClick = onRetake
+                    ) {
+                        Text("Retake")
+                    }
+
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        enabled = !captureDisabled,
+                        onClick = onClear
+                    ) {
+                        Text("Remove")
+                    }
+                }
             } else {
                 Box(
                     modifier = Modifier
@@ -554,6 +522,14 @@ private fun PhotoPreview(
                     contentAlignment = Alignment.Center
                 ) {
                     Text("No photo", style = MaterialTheme.typography.bodySmall)
+                }
+
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !captureDisabled,
+                    onClick = onRetake
+                ) {
+                    Text("Capture")
                 }
             }
         }
