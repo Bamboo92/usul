@@ -8,7 +8,7 @@ import abualqasim.dr3.usul.data.db.Category
 import abualqasim.dr3.usul.data.db.Material
 import abualqasim.dr3.usul.data.db.Surface
 import abualqasim.dr3.usul.ui.components.AssistChipRow
-import android.net.Uri
+import androidx.core.content.FileProvider
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -181,7 +181,12 @@ fun FormScreen(
                         takingNear = true
                         val target = newTargetFile("near")
                         nearPhotoPath = target.absolutePath
-                        cameraLauncher.launch(Uri.fromFile(target))
+                        val photoUri = FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            target
+                        )
+                        cameraLauncher.launch(photoUri)
                     }
                 ) { Text("Take Near") }
 
@@ -191,7 +196,12 @@ fun FormScreen(
                         takingNear = false
                         val target = newTargetFile("far")
                         farPhotoPath = target.absolutePath
-                        cameraLauncher.launch(Uri.fromFile(target))
+                        val photoUri = FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            target
+                        )
+                        cameraLauncher.launch(photoUri)
                     }
                 ) { Text("Take Far") }
             }
@@ -327,7 +337,12 @@ fun FormScreen(
                             takingNear = !takingNear
                             val target = if (takingNear) newTargetFile("near") else newTargetFile("far")
                             if (takingNear) nearPhotoPath = target.absolutePath else farPhotoPath = target.absolutePath
-                            cameraLauncher.launch(Uri.fromFile(target))
+                            val photoUri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                target
+                            )
+                            cameraLauncher.launch(photoUri)
                             showPhotoDialog = false
                         }) { Text("Take Second") }
                         OutlinedButton(onClick = {
