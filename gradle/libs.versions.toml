@@ -15,6 +15,7 @@ security-crypto = "1.1.0-alpha06"
 espresso = "3.6.1"
 junit-ext = "1.2.1"
 junit = "4.13.2"
+camerax = "1.3.3"
 
 [libraries]
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
@@ -49,6 +50,10 @@ androidx-appcompat-resources = { module = "androidx.appcompat:appcompat-resource
 androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version = "1.3.7" }
 
 coil-compose = { module = "io.coil-kt:coil-compose", version = "2.6.0" }
+androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

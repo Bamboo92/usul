@@ -1,33 +1,67 @@
 // file: app/src/main/java/abualqasim/dr3/usul/ui/form/FormScreen.kt
 package abualqasim.dr3.usul.ui.form
 
-import abualqasim.dr3.usul.ui.MainViewModel
-import abualqasim.dr3.usul.ui.components.LocationDialogWithSuggestions
-import abualqasim.dr3.usul.ui.components.SearchableDropdown
 import abualqasim.dr3.usul.data.db.Category
 import abualqasim.dr3.usul.data.db.Material
 import abualqasim.dr3.usul.data.db.Surface
+import abualqasim.dr3.usul.ui.MainViewModel
+import abualqasim.dr3.usul.ui.camera.CameraCaptureContract
+import abualqasim.dr3.usul.ui.camera.CameraCaptureRequest
+import abualqasim.dr3.usul.ui.camera.PhotoType
 import abualqasim.dr3.usul.ui.components.AssistChipRow
-import android.net.Uri
+import abualqasim.dr3.usul.ui.components.LocationDialogWithSuggestions
+import abualqasim.dr3.usul.ui.components.SearchableDropdown
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -55,30 +89,45 @@ fun FormScreen(
 
     // photos
     var nearPhotoPath by remember { mutableStateOf<String?>(null) }
-    var farPhotoPath  by remember { mutableStateOf<String?>(null) }
-    var takingNear by remember { mutableStateOf(true) }
-    var showPhotoDialog by remember { mutableStateOf(false) }
+    var farPhotoPath by remember { mutableStateOf<String?>(null) }
 
-    fun newTargetFile(tag: String) =
-        File(context.cacheDir, "${tag}_${System.currentTimeMillis()}.jpg")
+    var photoViewer by remember { mutableStateOf<PhotoViewerState?>(null) }
 
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            showPhotoDialog = true
-        } else {
-            if (takingNear) nearPhotoPath = null else farPhotoPath = null
+    fun clearPhoto(type: PhotoType) {
+        when (type) {
+            PhotoType.NEAR -> {
+                nearPhotoPath?.let { runCatching { File(it).delete() } }
+                nearPhotoPath = null
+            }
+            PhotoType.FAR -> {
+                farPhotoPath?.let { runCatching { File(it).delete() } }
+                farPhotoPath = null
+            }
+        }
+        if (photoViewer?.type == type) {
+            photoViewer = null
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(CameraCaptureContract()) { result ->
+        result ?: return@rememberLauncherForActivityResult
+        if (result.nearPath != nearPhotoPath) {
+            nearPhotoPath?.takeIf { it != result.nearPath }?.let { runCatching { File(it).delete() } }
+            nearPhotoPath = result.nearPath
+        }
+        if (result.farPath != farPhotoPath) {
+            farPhotoPath?.takeIf { it != result.farPath }?.let { runCatching { File(it).delete() } }
+            farPhotoPath = result.farPath
         }
     }
 
     // focus order
-    val takePhotoFR = remember { FocusRequester() }
     val titleFR = remember { FocusRequester() }
     val categoryFR = remember { FocusRequester() }
     val materialFR = remember { FocusRequester() }
     val surfaceFR = remember { FocusRequester() }
     val descFR = remember { FocusRequester() }
+    val saveFR = remember { FocusRequester() }
 
     var showLocationDialog by remember { mutableStateOf(false) }
     val sessionCity by vm.sessionCity.collectAsStateWithLifecycle()
@@ -112,6 +161,8 @@ fun FormScreen(
 
     BackHandler { vm.endFormSession(); nav.popBackStack() }
 
+    val formScrollState = rememberScrollState()
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -121,8 +172,24 @@ fun FormScreen(
         bottomBar = {
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 OutlinedButton(onClick = { vm.endFormSession(); nav.popBackStack() }) { Text("Cancel") }
-                Button(onClick = {
+                Button(
+                    modifier = Modifier
+                        .focusRequester(saveFR)
+                        .focusable(),
+                    onClick = {
                     scope.launch {
+                        val (movedNear, movedFar) = vm.movePhotosToCategoryFolder(
+                            context = context,
+                            categoryName = selectedCategory?.nameEn,
+                            nearPath = nearPhotoPath,
+                            farPath = farPhotoPath,
+                            title = title
+                        )
+                        val finalNear = movedNear ?: nearPhotoPath
+                        val finalFar = movedFar ?: farPhotoPath
+                        nearPhotoPath = finalNear
+                        farPhotoPath = finalFar
+
                         if (isEdit && fromId != null) {
                             vm.updateEntry(
                                 id = fromId,
@@ -131,8 +198,8 @@ fun FormScreen(
                                 materialId = selectedMaterial?.id,
                                 surfaceId = selectedSurface?.id,
                                 description = description.ifBlank { null },
-                                nearPhotoPath = nearPhotoPath,
-                                farPhotoPath = farPhotoPath
+                                nearPhotoPath = finalNear,
+                                farPhotoPath = finalFar
                             )
                             Toast.makeText(context, "Updated!", Toast.LENGTH_SHORT).show()
                             vm.endFormSession()
@@ -144,17 +211,10 @@ fun FormScreen(
                                 materialId = selectedMaterial?.id,
                                 surfaceId = selectedSurface?.id,
                                 description = description.ifBlank { null },
-                                nearPhotoPath = nearPhotoPath,
-                                farPhotoPath = farPhotoPath
+                                nearPhotoPath = finalNear,
+                                farPhotoPath = finalFar
                             )
                             if (newId.isNotBlank()) {
-                                vm.movePhotosToCategoryFolder(
-                                    context = context,
-                                    entryId = newId,
-                                    categoryName = selectedCategory?.nameEn.orEmpty(),
-                                    nearPath = nearPhotoPath,
-                                    farPath = farPhotoPath
-                                )
                                 Toast.makeText(context, "Saved!", Toast.LENGTH_SHORT).show()
                             } else {
                                 Toast.makeText(context, "Empty entry not saved", Toast.LENGTH_SHORT).show()
@@ -167,52 +227,37 @@ fun FormScreen(
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+                .verticalScroll(formScrollState),
+            verticalArrangement = Arrangement.Top
+        ) {
             AssistChipRow(sessionCity, sessionDistrict)
             Spacer(Modifier.height(12.dp))
 
             // PHOTOS FIRST
-            Text("Photos (optional)")
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    modifier = Modifier.weight(1f).focusRequester(takePhotoFR),
-                    onClick = {
-                        takingNear = true
-                        val target = newTargetFile("near")
-                        nearPhotoPath = target.absolutePath
-                        cameraLauncher.launch(Uri.fromFile(target))
-                    }
-                ) { Text("Take Near") }
-
-                Button(
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        takingNear = false
-                        val target = newTargetFile("far")
-                        farPhotoPath = target.absolutePath
-                        cameraLauncher.launch(Uri.fromFile(target))
-                    }
-                ) { Text("Take Far") }
-            }
-
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.weight(1f)) {
-                    if (nearPhotoPath != null) {
-                        AsyncImage(model = File(nearPhotoPath!!), contentDescription = "Near photo",
-                            modifier = Modifier.fillMaxWidth().height(120.dp))
-                    } else Text("Near: none")
+            PhotoCaptureRow(
+                nearPhotoPath = nearPhotoPath,
+                farPhotoPath = farPhotoPath,
+                onCapture = { type ->
+                    cameraLauncher.launch(
+                        CameraCaptureRequest(
+                            startType = type,
+                            title = title,
+                            nearPath = nearPhotoPath,
+                            farPath = farPhotoPath
+                        )
+                    )
+                },
+                onView = { type, path ->
+                    photoViewer = PhotoViewerState(type, path)
                 }
-                Box(Modifier.weight(1f)) {
-                    if (farPhotoPath != null) {
-                        AsyncImage(model = File(farPhotoPath!!), contentDescription = "Far photo",
-                            modifier = Modifier.fillMaxWidth().height(120.dp))
-                    } else Text("Far: none")
-                }
-            }
+            )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
 
             OutlinedTextField(
                 value = title,
@@ -294,8 +339,8 @@ fun FormScreen(
                 onValueChange = { description = it },
                 label = { Text("Description") },
                 modifier = Modifier.fillMaxWidth().focusRequester(descFR),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = KeyboardActions(onNext = { takePhotoFR.requestFocus() })
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { saveFR.requestFocus() })
             )
         }
 
@@ -313,36 +358,184 @@ fun FormScreen(
             )
         }
 
-        if (showPhotoDialog) {
-            AlertDialog(
-                onDismissRequest = { showPhotoDialog = false },
-                title = { Text("Photo captured") },
-                text = { Text(if (takingNear) "Near photo taken" else "Far photo taken") },
-                confirmButton = {
-                    Button(onClick = { showPhotoDialog = false }) { Text("Save") }
-                },
-                dismissButton = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            takingNear = !takingNear
-                            val target = if (takingNear) newTargetFile("near") else newTargetFile("far")
-                            if (takingNear) nearPhotoPath = target.absolutePath else farPhotoPath = target.absolutePath
-                            cameraLauncher.launch(Uri.fromFile(target))
-                            showPhotoDialog = false
-                        }) { Text("Take Second") }
-                        OutlinedButton(onClick = {
-                            try {
-                                val p = if (takingNear) nearPhotoPath else farPhotoPath
-                                if (p != null) File(p).delete()
-                                if (takingNear) nearPhotoPath = null else farPhotoPath = null
-                            } catch (_: Throwable) {}
-                            showPhotoDialog = false
-                        }) { Text("Cancel") }
-                    }
+        photoViewer?.let { viewer ->
+            PhotoViewerDialog(
+                label = if (viewer.type == PhotoType.NEAR) "Near photo" else "Far photo",
+                path = viewer.path,
+                onDelete = { clearPhoto(viewer.type) },
+                onDismiss = { photoViewer = null }
+            )
+        }
+
+    }
+
+}
+private data class PhotoViewerState(val type: PhotoType, val path: String)
+
+@Composable
+private fun PhotoCaptureRow(
+    nearPhotoPath: String?,
+    farPhotoPath: String?,
+    onCapture: (PhotoType) -> Unit,
+    onView: (PhotoType, String) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Text("Photos (optional)")
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            PhotoPreviewCard(
+                modifier = Modifier.weight(1f),
+                label = "Near",
+                filePath = nearPhotoPath,
+                onClick = {
+                    if (nearPhotoPath != null) onView(PhotoType.NEAR, nearPhotoPath) else onCapture(PhotoType.NEAR)
+                }
+            )
+
+            PhotoPreviewCard(
+                modifier = Modifier.weight(1f),
+                label = "Far",
+                filePath = farPhotoPath,
+                onClick = {
+                    if (farPhotoPath != null) onView(PhotoType.FAR, farPhotoPath) else onCapture(PhotoType.FAR)
                 }
             )
         }
     }
+}
 
-    LaunchedEffect(Unit) { takePhotoFR.requestFocus() }
+@Composable
+private fun PhotoPreviewCard(
+    modifier: Modifier = Modifier,
+    label: String,
+    filePath: String?,
+    onClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val file = filePath?.let(::File)
+    ElevatedCard(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelMedium)
+
+            if (file != null && file.exists()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(file)
+                        .allowHardware(false)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "$label photo",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    contentScale = ContentScale.Crop
+                )
+                Text(
+                    text = "Tap to view or delete",
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (filePath != null) "Image unavailable" else "Tap to capture",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoViewerDialog(
+    label: String,
+    path: String,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val file = remember(path) { File(path) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = AlertDialogDefaults.TonalElevation
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                if (file.exists()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(file)
+                            .allowHardware(false)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "$label photo",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Image unavailable",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            onDelete()
+                            onDismiss()
+                        }
+                    ) {
+                        Text("Delete")
+                    }
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        onClick = onDismiss
+                    ) {
+                        Text("Close")
+                    }
+                }
+            }
+        }
+    }
 }

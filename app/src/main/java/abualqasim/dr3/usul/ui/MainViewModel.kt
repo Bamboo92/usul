@@ -15,6 +15,9 @@ import abualqasim.dr3.usul.data.db.Surface
 import abualqasim.dr3.usul.data.repo.EntryRepository
 import abualqasim.dr3.usul.session.SessionStore
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class VocabMaps(
     val cat: Map<Long, String> = emptyMap(),
@@ -162,27 +165,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun sessionCityOnce(): String? = session.cityOnce()
 
-    fun movePhotosToCategoryFolder(
+    suspend fun movePhotosToCategoryFolder(
         context: Context,
-        entryId: String,
-        categoryName: String,
+        categoryName: String?,
         nearPath: String?,
-        farPath: String?
-    ) = viewModelScope.launch(Dispatchers.IO) {
-        val safeName = categoryName.ifBlank { "غير مصنف" }
-        val folder = File(context.getExternalFilesDir(null), "photos/$safeName").apply { mkdirs() }
+        farPath: String?,
+        title: String,
+    ): Pair<String?, String?> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val root = context.getExternalFilesDir(null) ?: context.filesDir
+        val categoryFolderName = categoryName?.ifBlank { null } ?: "غير مصنف"
+        val folder = File(root, "photos/$categoryFolderName").apply { mkdirs() }
 
-        listOfNotNull(
-            nearPath?.let { File(it) }?.let { it to "near" },
-            farPath?.let { File(it) }?.let { it to "far" }
-        ).forEach { (src, tag) ->
-            if (src.exists()) {
-                val dest = File(folder, "${entryId}_${tag}.jpg")
-                try {
-                    src.copyTo(dest, overwrite = true)
+        fun sanitizeTitle(raw: String): String {
+            return raw.ifBlank { "Entry" }
+                .replace(Regex("[^A-Za-z0-9_\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF ]"), " ")
+                .trim()
+                .ifBlank { "Entry" }
+        }
+
+        val safeTitle = sanitizeTitle(title)
+        val timestamp = SimpleDateFormat("yyyy-MM-dd HH-mm-ss", Locale.getDefault()).format(Date())
+        val targetRoot = folder.canonicalFile
+
+        fun moveIfNeeded(path: String?, tag: String): String? {
+            val src = path?.let(::File) ?: return null
+            if (!src.exists()) return null
+            val parent = src.canonicalFile.parentFile
+            if (parent?.canonicalPath == targetRoot.canonicalPath) {
+                return src.absolutePath
+            }
+            val destName = "$safeTitle $timestamp $tag.jpg"
+            val dest = File(targetRoot, destName)
+            return try {
+                src.copyTo(dest, overwrite = true)
+                if (src.canonicalPath != dest.canonicalPath) {
                     src.delete()
-                } catch (_: Throwable) { /* ignore */ }
+                }
+                dest.absolutePath
+            } catch (_: Throwable) {
+                path
             }
         }
+
+        val newNear = moveIfNeeded(nearPath, "Near")
+        val newFar = moveIfNeeded(farPath, "Far")
+        newNear to newFar
     }
 }
