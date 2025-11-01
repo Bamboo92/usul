@@ -1,3 +1,4 @@
+// file: app/src/main/java/abualqasim/dr3/usul/ui/components/SearchableDropdown.kt
 package abualqasim.dr3.usul.ui.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,7 +53,6 @@ fun <T> SearchableDropdown(
                     }
                 )
             }
-
             if (query.isNotBlank() && filtered.none { textOf(it).equals(query, true) }) {
                 DropdownMenuItem(
                     text = { Text("+ Add \"$query\"") },
@@ -62,7 +62,6 @@ fun <T> SearchableDropdown(
                     }
                 )
             }
-
             DropdownMenuItem(
                 text = { Text("— Clear —") },
                 onClick = { onSelected(null); expanded = false }

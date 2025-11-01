@@ -1,3 +1,4 @@
+// file: app/src/main/java/abualqasim/dr3/usul/data/repo/EntryRepository.kt
 package abualqasim.dr3.usul.data.repo
 
 import abualqasim.dr3.usul.data.db.*
@@ -7,7 +8,8 @@ class EntryRepository(private val db: AppDb) {
 
     suspend fun get(id: String) = db.entryDao().byId(id)
 
-    suspend fun createDraft(
+    suspend fun createDraftWithId(
+        id: String,
         title: String?,
         categoryId: Long?,
         materialId: Long?,
@@ -15,11 +17,13 @@ class EntryRepository(private val db: AppDb) {
         description: String?,
         city: String?,
         district: String?,
-        creatorHash: String
+        creatorHash: String,
+        nearPhotoPath: String?,
+        farPhotoPath: String?
     ) {
         val now = System.currentTimeMillis()
         val e = Entry(
-            id = java.util.UUID.randomUUID().toString(),
+            id = id,
             title = title,
             categoryId = categoryId,
             materialId = materialId,
@@ -28,6 +32,8 @@ class EntryRepository(private val db: AppDb) {
             city = city,
             district = district,
             creatorHash = creatorHash,
+            nearPhotoPath = nearPhotoPath,
+            farPhotoPath = farPhotoPath,
             createdAt = now,
             updatedAt = now
         )
@@ -42,6 +48,8 @@ class EntryRepository(private val db: AppDb) {
         val now = System.currentTimeMillis()
         val copy = src.copy(
             id = java.util.UUID.randomUUID().toString(),
+            title = null,
+            description = null,
             createdAt = now,
             updatedAt = now
         )

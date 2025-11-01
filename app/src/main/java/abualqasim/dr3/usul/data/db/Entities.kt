@@ -23,7 +23,7 @@ data class Entry(
 @Entity(tableName = "category")
 data class Category(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val nameEn: String,
+    val nameEn: String,                // can contain Arabic/any script
     val nameLat: String? = null,
     val userDefined: Boolean = false
 )

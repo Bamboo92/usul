@@ -1,6 +1,6 @@
-package abualqasim.dr3.usul
+// file: app/src/main/java/abualqasim/dr3/usul/ui/MainActivity.kt
+package abualqasim.dr3.usul.ui
 
-import abualqasim.dr3.usul.ui.MainViewModel
 import abualqasim.dr3.usul.ui.form.FormScreen
 import android.os.Bundle
 import android.widget.Toast
@@ -59,14 +59,9 @@ fun MainScreen(
                 title = { Text("Entries") },
                 actions = {
                     TextButton(onClick = {
-                        vm.exportCsv(
-                            onDone = { file: File ->
-                                lastExportPath = file.absolutePath
-                                Toast.makeText(context, "Exported:\n${file.absolutePath}", Toast.LENGTH_LONG).show()
-                            },
-                            onError = { err -> Toast.makeText(context, "Export failed: ${err.message}", Toast.LENGTH_LONG).show() }
-                        )
-                    }) { Text("Export CSV") }
+                        // implement export if needed; placeholder toast
+                        Toast.makeText(context, "Use your export function here", Toast.LENGTH_SHORT).show()
+                    }) { Text("Export") }
                 }
             )
         },

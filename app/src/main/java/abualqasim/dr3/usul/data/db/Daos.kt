@@ -1,3 +1,4 @@
+// file: app/src/main/java/abualqasim/dr3/usul/data/db/Daos.kt
 package abualqasim.dr3.usul.data.db
 
 import androidx.room.*

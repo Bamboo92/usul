@@ -1,3 +1,4 @@
+// file: app/src/main/java/abualqasim/dr3/usul/session/SessionStore.kt
 package abualqasim.dr3.usul.session
 
 import android.content.Context
@@ -6,6 +7,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 
 val Context.sessionDataStore by preferencesDataStore(name = "session_prefs")
@@ -43,4 +45,6 @@ class SessionStore(private val context: Context) {
     suspend fun clearSession() {
         context.sessionDataStore.edit { it.clear() }
     }
+
+    suspend fun cityOnce(): String? = cityFlow.firstOrNull()
 }
