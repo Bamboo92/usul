@@ -67,6 +67,9 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
+    // --- Excel export ---
+    implementation(libs.apache.poi.ooxml)
+
     // --- Core / Lifecycle / Navigation / Coroutines ---
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -53,16 +53,37 @@ fun MainScreen(
     val entries by vm.uiEntries.collectAsStateWithLifecycle(emptyList())
     val context = LocalContext.current
     var lastExportPath by remember { mutableStateOf<String?>(null) }
+    var exporting by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Entries") },
                 actions = {
-                    TextButton(onClick = {
-                        // implement export if needed; placeholder toast
-                        Toast.makeText(context, "Use your export function here", Toast.LENGTH_SHORT).show()
-                    }) { Text("Export") }
+                    TextButton(
+                        onClick = {
+                            if (exporting) return@TextButton
+                            exporting = true
+                            vm.exportEntries(context) { result ->
+                                exporting = false
+                                result.onSuccess { file ->
+                                    lastExportPath = file.absolutePath
+                                    Toast.makeText(
+                                        context,
+                                        "Exported to ${file.absolutePath}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }.onFailure { error ->
+                                    val message = error.localizedMessage?.takeIf { it.isNotBlank() }
+                                        ?: "Export failed"
+                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        enabled = !exporting
+                    ) {
+                        Text(if (exporting) "Exporting…" else "Export")
+                    }
                 }
             )
         },
@@ -71,6 +92,15 @@ fun MainScreen(
         }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+            if (!lastExportPath.isNullOrBlank()) {
+                item("last-export-path") {
+                    Text(
+                        text = "Last export: ${lastExportPath!!}",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
             items(entries, key = { it.id }) { e ->
                 ListItem(
                     headlineContent = { Text(e.title ?: "(no title)") },

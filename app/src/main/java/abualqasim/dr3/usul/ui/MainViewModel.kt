@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import abualqasim.dr3.usul.data.db.AppDb
 import abualqasim.dr3.usul.data.db.Category
 import abualqasim.dr3.usul.data.db.Material
@@ -18,6 +19,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import abualqasim.dr3.usul.util.exportEntriesToExcel
 
 data class VocabMaps(
     val cat: Map<Long, String> = emptyMap(),
@@ -210,5 +212,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val newNear = moveIfNeeded(nearPath, "Near")
         val newFar = moveIfNeeded(farPath, "Far")
         newNear to newFar
+    }
+
+    fun exportEntries(
+        context: Context,
+        onResult: (Result<File>) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = exportEntriesToExcel(context.applicationContext, db)
+                withContext(Dispatchers.Main) { onResult(Result.success(file)) }
+            } catch (t: Throwable) {
+                withContext(Dispatchers.Main) { onResult(Result.failure(t)) }
+            }
+        }
     }
 }
